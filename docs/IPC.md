@@ -27,6 +27,8 @@ All route methods complete when travel finishes or fail with an exception. Only 
 | --- | --- |
 | `PathToTerritoryAsync(uint territoryId, CancellationToken token)` | Enter a territory. |
 | `PathToAsync(uint territoryId, Vector3 position, CancellationToken token)` | Move to a position, including travel across territories. |
+| `PathToAreaAsync(uint territoryId, Vector3 center, float radius, bool includeHeight, CancellationToken token)` | Move to reachable ground within the given radius. Requires API 4. |
+| `GetMovementPolicy()` | Read the current mount, roulette, mount ID, flight, sprint, and minimum mount and sprint distances as a named tuple. Requires API 4. |
 | `PathToHousingAsync(uint territoryId, Vector3 position, int ward, CancellationToken token)` | Move to housing coordinates in a ward. |
 | `PathToHousingPlotAsync(uint territoryId, int ward, int plot, CancellationToken token)` | Travel to the specified ward and stop at the plot placard. |
 | `PathToInteractableAsync(uint territoryId, Vector3 position, uint baseId, CancellationToken token, float range = 0)` | Move into range of an actor. Pass `Vector3.Zero` to look up the position by ID. |
@@ -40,7 +42,7 @@ All route methods complete when travel finishes or fail with an exception. Only 
 
 Automatic ENPC and EOBJ searches skip restricted territory placements outside the current territory. For an intentional visit, pass the exact territory ID to `PathToInteractableAsync`. The route needs a supported entrance and any required unlocks.
 
-`ApiVersion` returns 1 for this release. `IsAvailable` checks whether the IPC provider is registered. These calls plan and execute movement; they do not automatically interact with the destination actor.
+`ApiVersion` returns 4 for this release. API 4 adds `MappingTheRealm.PathToArea(uint territory, Vector3 center, float radius, bool includeHeight)` and `MappingTheRealm.GetMovementPolicy()`. For area routes, pass `false` for horizontal distance or `true` to include height. The area route tries a bounded set of candidate endpoints and reports an error if none can be reached. `IsAvailable` checks whether the IPC provider is registered. Route calls plan and execute movement up to the destination or interaction range.
 
 The overload without coordinates calls `MappingTheRealm.PathToInteractableById`. For example, `PathToInteractableAsync(128, 48, token)` and `PathToInteractableAsync(128, Vector3.Zero, 48, token)` both look up the same aethernet shard. The lookup fails if the specified territory has no indexed placement for that ID. If an ID has several indexed placements in a territory, the lookup uses the first match. Pass explicit nonzero coordinates to choose a specific placement.
 

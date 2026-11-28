@@ -6,6 +6,8 @@ using Dalamud.Plugin;
 using Dalamud.Plugin.Ipc;
 using Dalamud.Plugin.Ipc.Exceptions;
 
+using MovementPolicy = (bool UseMount, bool UseMountRoulette, uint MountId, bool UseFlight, bool UseSprint, uint MinMountDistance, uint MinRunDistance);
+
 namespace MappingTheRealm.Ipc;
 
 public sealed class MappingTheRealmIpc
@@ -14,6 +16,8 @@ public sealed class MappingTheRealmIpc
     private readonly ICallGateSubscriber<bool> isPathing;
     private readonly ICallGateSubscriber<uint, Task> pathToTerritory;
     private readonly ICallGateSubscriber<uint, Vector3, Task> pathTo;
+    private readonly ICallGateSubscriber<uint, Vector3, float, bool, Task> pathToArea;
+    private readonly ICallGateSubscriber<MovementPolicy> getMovementPolicy;
     private readonly ICallGateSubscriber<uint, Vector3, int, Task> pathToHousing;
     private readonly ICallGateSubscriber<uint, int, int, Task> pathToHousingPlot;
     private readonly ICallGateSubscriber<uint, Vector3, uint, Task> pathToInteractable;
@@ -33,6 +37,8 @@ public sealed class MappingTheRealmIpc
         isPathing = pluginInterface.GetIpcSubscriber<bool>("MappingTheRealm.IsPathing");
         pathToTerritory = pluginInterface.GetIpcSubscriber<uint, Task>("MappingTheRealm.PathToTerritory");
         pathTo = pluginInterface.GetIpcSubscriber<uint, Vector3, Task>("MappingTheRealm.PathTo");
+        pathToArea = pluginInterface.GetIpcSubscriber<uint, Vector3, float, bool, Task>("MappingTheRealm.PathToArea");
+        getMovementPolicy = pluginInterface.GetIpcSubscriber<MovementPolicy>("MappingTheRealm.GetMovementPolicy");
         pathToHousing = pluginInterface.GetIpcSubscriber<uint, Vector3, int, Task>("MappingTheRealm.PathToHousing");
         pathToHousingPlot = pluginInterface.GetIpcSubscriber<uint, int, int, Task>("MappingTheRealm.PathToHousingPlot");
         pathToInteractable = pluginInterface.GetIpcSubscriber<uint, Vector3, uint, Task>("MappingTheRealm.PathToInteractable");
@@ -56,6 +62,15 @@ public sealed class MappingTheRealmIpc
 
     public Task PathToAsync(uint territory, Vector3 position, CancellationToken token) =>
         RunRouteAsync(() => pathTo.InvokeFunc(territory, position), token);
+
+    public Task PathToAreaAsync(uint territory, Vector3 center, float radius, bool includeHeight, CancellationToken token) =>
+        RunRouteAsync(() => pathToArea.InvokeFunc(territory, center, radius, includeHeight), token, minimumVersion: 4);
+
+    public MovementPolicy GetMovementPolicy()
+    {
+        RequireVersion(4);
+        return getMovementPolicy.InvokeFunc();
+    }
 
     public Task PathToHousingAsync(uint territory, Vector3 position, int ward, CancellationToken token) =>
         RunRouteAsync(() => pathToHousing.InvokeFunc(territory, position, ward), token);
@@ -91,19 +106,19 @@ public sealed class MappingTheRealmIpc
         return canReach.InvokeFunc(territory, position, token).WaitAsync(token);
     }
 
-    private async Task RunRouteAsync(Func<Task> start, CancellationToken token)
+    private async Task RunRouteAsync(Func<Task> start, CancellationToken token, int minimumVersion = 1)
     {
         token.ThrowIfCancellationRequested();
-        RequireVersion();
+        RequireVersion(minimumVersion);
         var route = start();
         using var cancellation = token.Register(Stop);
         await route.WaitAsync(token);
     }
 
-    private void RequireVersion()
+    private void RequireVersion(int minimumVersion = 1)
     {
-        if (version.InvokeFunc() < 1)
-            throw new InvalidOperationException("MappingTheRealm IPC version is incompatible.");
+        if (version.InvokeFunc() < minimumVersion)
+            throw new InvalidOperationException($"This call requires MappingTheRealm IPC version {minimumVersion} or later.");
     }
 
     public void Stop()
